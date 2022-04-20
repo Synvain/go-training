@@ -1,7 +1,6 @@
 package gotraining
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -239,14 +237,25 @@ func MethodUsingAnyInterface(i interface{}) {
 	fmt.Println("Type: ", reflect.TypeOf(i))
 
 	// using type assertions
-	if _, ok := i.(MyClass); ok {
-		fmt.Println("i is a MyClass")
-		i.(MyClass).Method1()
+	if c, ok := i.(*MyClass); ok {
+		fmt.Println("i is a *MyClass")
+		i.(*MyClass).Method1()
+		c.Method1()
 	}
 
-	if _, ok := i.(MyOtherClass); ok {
-		fmt.Println("i is a MyOtherClass")
-		i.(MyOtherClass).Method1()
+	if c, ok := i.(MyClass); ok {
+		fmt.Println("i is a MyClass")
+		i.(MyClass).Method1()
+		c.Method2()
+	}
+
+	if _, ok := i.(*MyOtherClass); ok {
+		fmt.Println("i is a *MyOtherClass")
+		i.(*MyOtherClass).Method1()
+	}
+
+	if _, ok := i.(int); ok {
+		fmt.Println("i is a int", i)
 	}
 
 	// or using switch statement
@@ -288,6 +297,13 @@ func UsingClassesAndInterfaces() {
 
 	MethodUsingAnyInterface(i)
 	MethodUsingAnyInterface(j)
+
+	m := MyClass{}
+	MethodUsingAnyInterface(m)
+
+	n := 1
+	MethodUsingAnyInterface(n)
+
 }
 
 /*******************************************************************************
@@ -299,17 +315,17 @@ func UsingMemoryAllocation() {
 	j.Method1()
 
 	// Allocate memory for a slice
-	k := make([]MyClass, 1)
+	k := make([]MyClass, 1) // same as []MyClass{}
 	k[0].Method1()
 
 	// Allocate memory for a map
-	l := make(map[int]int)
+	l := make(map[int]int) // same as map[int]int{}
 	l[1] = 2
 	fmt.Println(l)
 
 	// literals can be used to allocate memory
 	m := []MyClass{}
-	n := map[int]int{ 1: 2 }
+	n := map[string]string{ "a": "b" }
 
 	var o *struct{}  // Pointer to a struct with no members
 	o = &struct{}{}  // Allocate memory for the struct
@@ -354,10 +370,12 @@ func UsingMaps() {
 
 	m2 := make(map[string]string)
 	m2["a"] = "b"
-	fmt.Println(m2["a"])
+	fmt.Println("m2:['a']: ", m2["a"])
+	delete(m2, "a")
+	fmt.Println("m2['a']: ", m2["a"])
 
 	m3 := map[string]string{"c": "d", "e": "f"}
-	fmt.Println(m3)
+	fmt.Println("m3: ", m3)
 }
 
 /*******************************************************************************
@@ -632,7 +650,8 @@ func UsingClassEmbedding() {
 	defer c1.Unlock()
 	c1.A = 1
 	c1.B = 2
-	fmt.Printf("MyClassEmbedding: %v\n", &c1)
+	fmt.Printf("MyClassEmbedding: %v\n", c1)  // warning: call of fmt.Printf copies lock value
+	fmt.Printf("MyClassEmbedding: %v\n", &c1) // Using pointer to c1 to prevent copying object
 
 	// Initialize all fields specifically
 	c2 := MyClassEmbedding2{MyClassEmbedding: MyClassEmbedding{A: 1, B: 2}, C: 3}
@@ -892,8 +911,8 @@ var Examples = []Example{
 	{ Name: "UsingFunctions", Function: UsingFunctions },
 	{ Name: "UsingPackages", Function: UsingPackages },
 	{ Name: "UsingCusomTypes", Function: UsingCusomTypes },
-	{ Name: "UsingMemoryAllocation", Function: UsingMemoryAllocation },
 	{ Name: "UsingClassesAndInterfaces", Function: UsingClassesAndInterfaces },
+	{ Name: "UsingMemoryAllocation", Function: UsingMemoryAllocation },
 	{ Name: "UsingMaps", Function: UsingMaps },
 	{ Name: "UsingSlices", Function: UsingSlices },
 	{ Name: "UsingRanges", Function: UsingRanges },
@@ -914,13 +933,10 @@ var Examples = []Example{
 }
 
 func RunCourses() {
-	reader := bufio.NewReader(os.Stdin)
 	initLogger()
 
 	for _, example := range Examples {
 		fmt.Printf("\n****************** %s ******************\n", example.Name)
 		example.Function()
-		fmt.Println("Press enter to continue")
-		reader.ReadString('\n')
 	}
 }
