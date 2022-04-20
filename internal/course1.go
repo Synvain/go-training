@@ -233,6 +233,8 @@ func MethodUsingMyInterface(i MyInterface) {
 	i.Method2()
 }
 
+// Anything can be passed as argument to this function
+// Watch out, go will panic if something not supported is attempted on the pas object/pointer
 func MethodUsingAnyInterface(i interface{}) {
 	fmt.Println("Type: ", reflect.TypeOf(i))
 
@@ -271,6 +273,7 @@ func MethodUsingAnyInterface(i interface{}) {
 // Convention for allocating classes New<myclassname>
 func NewMyClass(a int, b int) MyInterface {
 	// Allocate memory for a new MyClass
+	// As long as the pointer is no longer referenced anywhere, the memory is freed by the GC
 	return &MyClass{
 		a: a,
 		b: b,
@@ -314,8 +317,8 @@ func UsingMemoryAllocation() {
 	j := MyClass{}
 	j.Method1()
 
-	// Allocate memory for a slice
-	k := make([]MyClass, 1) // same as []MyClass{}
+	// Allocate memory for a slice with a capacity of 1
+	k := make([]MyClass, 1)
 	k[0].Method1()
 
 	// Allocate memory for a map
@@ -323,10 +326,11 @@ func UsingMemoryAllocation() {
 	l[1] = 2
 	fmt.Println(l)
 
-	// literals can be used to allocate memory
-	m := []MyClass{}
+	// literals can be used to allocate objects
+	m := []MyClass{ {a: 1, D: 3} }
 	n := map[string]string{ "a": "b" }
 
+	// struct{} is a struct with no fields, somtime used with un-buffered channels for synchronization
 	var o *struct{}  // Pointer to a struct with no members
 	o = &struct{}{}  // Allocate memory for the struct
 
@@ -359,7 +363,11 @@ func UsingMaps() {
 	m := MyComplexMap{ "QC": { "a": "b" } }
 	fmt.Println(m["QC"])
 
-	// Checking if a value is in a list
+	// e will be the value, ok will be true if found
+	e, ok := Provices["EE"]
+	fmt.Println(e, ok)
+
+	// Checking if a value is in a map (map's sugar syntax)
 	if Provices["QC"] {
 		fmt.Println("QC is a province")
 	}
@@ -413,12 +421,20 @@ func UsingRanges() {
 	for i, v := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
 		fmt.Println(i, v)
 	}
-	// on maps
+	for i, v := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}[0:4] {
+		fmt.Println(i, v)
+	}
+	// on maps: key value pairs
 	for k, v := range Provices {
 		fmt.Println(k, v)
 	}
+	// keys only
 	for k := range Provices {
 		fmt.Println(k)
+	}
+	// values only
+	for _, v := range Provices {
+		fmt.Println(v)
 	}
 }
 
@@ -527,8 +543,8 @@ func OpenSomething() (int, error) {
 	fmt.Println("OpenSomething: ", s)
 	return s, nil
 }
-func CloseSomthing(s int) error {
-	fmt.Println("CloseSomthing: ", s)
+func CloseSomething(s int) error {
+	fmt.Println("CloseSomething: ", s)
 	return nil
 }
 func UsingDefer() {
@@ -538,7 +554,8 @@ func UsingDefer() {
 	if s, err = OpenSomething(); err != nil {
 		panic(err)
 	}
-	defer CloseSomthing(s)
+	defer CloseSomething(s)
+	// go on with your function without worrying about closing s
 }
 
 /*******************************************************************************
@@ -574,13 +591,17 @@ func RoutineUsingQueues(done chan bool, terminate chan bool, q chan MyItem) {
 loop:
 	for {
 		select {
-		case item := <- q:
+		case <-terminate:
+			fmt.Println("Terminating")
+			break loop
+		case item, ok := <- q:
+			if !ok {
+				fmt.Println("Channel closed")
+				break loop
+			}
 			fmt.Println("Received item: ", item.A, item.B)
 		case <-time.After(1 * time.Second):
 			fmt.Println("Timeout")
-			break loop
-		case <-terminate:
-			fmt.Println("Terminating")
 			break loop
 		}
 	}
@@ -594,11 +615,15 @@ func UsingQueues() {
 	q <- MyItem{A: "b", B: 2}
 	q <- MyItem{A: "c", B: 3}
 
-	go RoutineUsingQueues(done, terminate, q)
+	go RoutineUsingQueues(done, terminate, q) // Will end because of timeout after emptying the queue
 	<- done
 
-	go RoutineUsingQueues(done, terminate, q)
+	go RoutineUsingQueues(done, terminate, q) // Will end because of terminate
 	terminate <- true
+	<- done
+
+	go RoutineUsingQueues(done, terminate, q) // Will end because of closed channel
+	close(q)
 	<- done
 }
 
