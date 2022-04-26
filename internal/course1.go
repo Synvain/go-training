@@ -716,10 +716,10 @@ func initLogger() {
 func UsingLogging() {
 	f := func () error {
 		return MyError{"Oopsy daisy like Antoine would say"}
-	}()
+	}
 
-	if err := f; err != nil {
-		log.WithError(err).Error("Call to f() failed")
+	if err := f(); err != nil {
+		log.WithError(err).WithField("Antoine", "Imbeau").Error("Call to f() failed")
 	}
 }
 
@@ -743,8 +743,7 @@ func WaitForSomething(something* bool, timeout time.Duration) error {
 }
 
 func UsingSelectToWaitForSomething() {
-	var something bool
-	something = false
+	something := false
 	err := WaitForSomething(&something, 1 * time.Second)
 	if err != nil {
 		log.WithError(err).Error("Error in UsingSelectToWaitForSomething()")
@@ -799,6 +798,7 @@ func UsingDecorator() {
 	err := util.Retry(3, time.Second, 2, func(attempt int) (retry bool, err error) {
 		retry = true
 		err = FunctionThatMayFail()
+		fmt.Printf("Attempt %d: %v\n", attempt, err)
 		return
 	})
 	if err != nil {
@@ -844,13 +844,27 @@ func MyHttpWriterDecorator(logger *log.Entry, handlerfunc http.HandlerFunc) http
 		default:
 			// metrics.HttpResponseSentUnknownCount.Inc(1)
 		}
-
 	})
 }
 
 func StartMyHttpServer() {
 	logger := log.WithField("logger", "http/server")
 
+	// Undecorated handler
+	http.HandleFunc("/a", func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			logger.Fatal(err) // Would exit program with status 1
+		}
+
+		logger.WithField("body", string(body)).Info("Request received")
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello http client"))
+	})
+
+	// Decorated to log the status code
 	http.Handle("/foo", MyHttpWriterDecorator(logger, func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
@@ -864,6 +878,7 @@ func StartMyHttpServer() {
 		w.Write([]byte("Hello http client"))
 	}))
 
+	// Decorated to log the status code
 	http.Handle("/wait", MyHttpWriterDecorator(logger, func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		logger.Warn("sleeping 3 seconds")
@@ -900,8 +915,8 @@ func MySimpleHttpClientPostWithDeadline(logger *log.Entry) {
 	}
 
 	/* Note: http.Client has a `Timeout` parameter.
-		This is not a good way to do this, but it's just for demo purposes of WithDeadline
-		which would set a deadline for everything down the line of a function
+		But if we want multiple request to be completed within a certain time, we use context.WithDeadline
+		Otherwise we would have to manage each request's timeout individually vs the the time budget for all the requests.
 	*/
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(2 * time.Second))
 	req = req.WithContext(ctx)
